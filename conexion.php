@@ -3,7 +3,7 @@
 $host = 'localhost';
 $baseDatos = 'tecnostock';
 $usuario = 'root';
-$clave = ''; // En XAMPP por defecto no tiene contraseña
+$clave = ''; 
 
 $dsn = "mysql:host=$host;dbname=$baseDatos;charset=utf8mb4";
 
