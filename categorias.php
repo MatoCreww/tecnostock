@@ -12,7 +12,7 @@ require_once 'conexion.php';
 $mensaje = '';
 $error = '';
 
-// Procesar el registro de nueva categoría
+// 1. PROCESAR REGISTRO DE NUEVA CATEGORÍA
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['crear_categoria'])) {
     $nombre = trim($_POST['nombre'] ?? '');
     $descripcion = trim($_POST['descripcion'] ?? '');
@@ -37,7 +37,46 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['crear_categoria'])) {
     }
 }
 
-// Consultar categorías ordenadas de la más reciente a la más antigua
+// 2. CAMBIAR ESTADO (ACTIVAR / DESACTIVAR)
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['cambiar_estado'])) {
+    $id_categoria = intval($_POST['id_categoria'] ?? 0);
+    $nuevo_estado = intval($_POST['nuevo_estado'] ?? 1);
+
+    if ($id_categoria > 0) {
+        try {
+            $stmt = $pdo->prepare("UPDATE categorias SET estado = :estado WHERE id_categoria = :id_categoria");
+            $stmt->execute([
+                ':estado' => $nuevo_estado,
+                ':id_categoria' => $id_categoria
+            ]);
+            $estadoTexto = ($nuevo_estado === 1) ? 'activada' : 'desactivada';
+            $mensaje = "La categoría ha sido {$estadoTexto} correctamente.";
+        } catch (PDOException $e) {
+            $error = 'Error al cambiar el estado de la categoría: ' . $e->getMessage();
+        }
+    }
+}
+
+// 3. ELIMINAR CATEGORÍA
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['eliminar_categoria'])) {
+    $id_categoria = intval($_POST['id_categoria'] ?? 0);
+
+    if ($id_categoria > 0) {
+        try {
+            $stmt = $pdo->prepare("DELETE FROM categorias WHERE id_categoria = :id_categoria");
+            $stmt->execute([':id_categoria' => $id_categoria]);
+            $mensaje = 'Categoría eliminada con éxito.';
+        } catch (PDOException $e) {
+            if ($e->getCode() == 23000) { // Violación de clave foránea (ON DELETE RESTRICT)
+                $error = 'No se puede eliminar esta categoría porque tiene productos asociados. Considera desactivarla en su lugar.';
+            } else {
+                $error = 'Error al eliminar la categoría: ' . $e->getMessage();
+            }
+        }
+    }
+}
+
+// 4. CONSULTAR CATEGORÍAS
 try {
     $stmt = $pdo->query("SELECT * FROM categorias ORDER BY id_categoria DESC");
     $categorias = $stmt->fetchAll();
@@ -69,10 +108,13 @@ try {
                         <a class="nav-link" href="index.php">Dashboard</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="productos.php#">Productos</a>
+                        <a class="nav-link" href="productos.php">Productos</a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link active" href="categorias.php">Categorías</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="movimientos.php">Movimientos</a>
                     </li>
                 </ul>
                 <div class="d-flex align-items-center gap-3">
@@ -84,7 +126,7 @@ try {
     </nav>
 
     <!-- Contenido -->
-    <div class="container">
+    <div class="container mb-5">
         <div class="row mb-4">
             <div class="col-md-8">
                 <h2>Gestión de Categorías</h2>
@@ -123,6 +165,7 @@ try {
                                 <th>Nombre</th>
                                 <th>Descripción</th>
                                 <th>Estado</th>
+                                <th class="text-center">Acciones</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -134,16 +177,36 @@ try {
                                         <td><?= htmlspecialchars($cat['descripcion'] ?? 'Sin descripción') ?></td>
                                         <td>
                                             <?php if ($cat['estado'] == 1): ?>
-                                                <span class="badge bg-success">Activo</span>
+                                                <span class="badge bg-success">Activa</span>
                                             <?php else: ?>
-                                                <span class="badge bg-secondary">Inactivo</span>
+                                                <span class="badge bg-secondary">Inactiva</span>
                                             <?php endif; ?>
+                                        </td>
+                                        <td class="text-center">
+                                            <!-- Cambiar Estado -->
+                                            <form action="categorias.php" method="POST" class="d-inline">
+                                                <input type="hidden" name="cambiar_estado" value="1">
+                                                <input type="hidden" name="id_categoria" value="<?= $cat['id_categoria'] ?>">
+                                                <input type="hidden" name="nuevo_estado" value="<?= $cat['estado'] == 1 ? 0 : 1 ?>">
+                                                <?php if ($cat['estado'] == 1): ?>
+                                                    <button type="submit" class="btn btn-sm btn-outline-warning">Desactivar</button>
+                                                <?php else: ?>
+                                                    <button type="submit" class="btn btn-sm btn-outline-success">Activar</button>
+                                                <?php endif; ?>
+                                            </form>
+
+                                            <!-- Eliminar Categoría -->
+                                            <form action="categorias.php" method="POST" class="d-inline">
+                                                <input type="hidden" name="eliminar_categoria" value="1">
+                                                <input type="hidden" name="id_categoria" value="<?= $cat['id_categoria'] ?>">
+                                                <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('¿Está seguro de eliminar esta categoría?');">Eliminar</button>
+                                            </form>
                                         </td>
                                     </tr>
                                 <?php endforeach; ?>
                             <?php else: ?>
                                 <tr>
-                                    <td colspan="4" class="text-center py-4 text-muted">No hay categorías registradas.</td>
+                                    <td colspan="5" class="text-center py-4 text-muted">No hay categorías registradas.</td>
                                 </tr>
                             <?php endif; ?>
                         </tbody>
@@ -162,7 +225,7 @@ try {
                         <h5 class="modal-title">Registrar Categoría</h5>
                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>
-                    <div class="modal-content-body p-3">
+                    <div class="modal-body p-3">
                         <input type="hidden" name="crear_categoria" value="1">
                         <div class="mb-3">
                             <label for="nombre" class="form-label">Nombre de la Categoría</label>
