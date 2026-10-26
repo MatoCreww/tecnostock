@@ -8,11 +8,11 @@ if (!isset($_SESSION['usuario_id'])) {
 
 require_once 'conexion.php';
 
-$nombreUsuario = $_SESSION['usuario_nombres'];
+$nombreUsuario = $_SESSION['usuario_nombre'];
 
 try {
     $stmtProd = $pdo->query("SELECT COUNT(*) FROM productos");
-    $totalProductos = $stmtProd->fetchColumn()
+    $totalProductos = $stmtProd->fetchColumn();
 
     $stmtCat = $pdo->query("SELECT COUNT(*) FROM categoria WHERE estado = 1");
     $totalCategorias = $stmtCat->fetchColumn();
