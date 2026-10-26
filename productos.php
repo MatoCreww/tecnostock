@@ -57,13 +57,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['editar_producto'])) {
     if ($id_producto > 0 && !empty($nombre) && $id_categoria > 0 && $precio >= 0 && $stock_minimo >= 0) {
         try {
             $stmt = $pdo->prepare("UPDATE productos 
-                                   SET nombre = :nombre, descripcion = :descripcion, precio = :precio, stock_minimo = :stock_minimo 
+                                   SET nombre = :nombre, descripcion = :descripcion, precio = :precio, stock_minimo = :stock_minimo, id_categoria = :id_categoria 
                                    WHERE id_producto = :id_producto");
             $stmt->execute([
                 ':nombre' => $nombre,
                 ':descripcion' => $descripcion,
                 ':precio' => $precio,
                 ':stock_minimo' => $stock_minimo,
+                ':id_categoria' => $id_categoria,
                 ':id_producto' => $id_producto
             ]);
             $mensaje = 'Producto actualizado correctamente.';
@@ -101,13 +102,15 @@ try {
         $query = "SELECT p.*, c.nombre AS categoria_nombre 
                   FROM productos p 
                   INNER JOIN categorias c ON p.id_categoria = c.id_categoria 
-                  WHERE p.nombre LIKE :buscar OR p.codigo LIKE :buscar OR c.nombre LIKE :buscar
+                  WHERE p.nombre LIKE :b1 OR p.codigo LIKE :b2 OR c.nombre LIKE :b3
                   ORDER BY p.id_producto DESC";
         $stmt = $pdo->prepare($query);
-        
+
         $term = "%{$busqueda}%";
         $stmt->execute([
-            ':buscar' => $term
+            ':b1' => $term,
+            ':b2' => $term,
+            ':b3' => $term
         ]);
     } else {
         $query = "SELECT p.*, c.nombre AS categoria_nombre 
@@ -391,6 +394,7 @@ try {
                 document.getElementById('edit_descripcion').value = this.dataset.descripcion;
                 document.getElementById('edit_precio').value = this.dataset.precio;
                 document.getElementById('edit_stock_minimo').value = this.dataset.stock_minimo;
+                document.getElementById('edit_categoria').value = this.dataset.categoria;
             });
         });
 
