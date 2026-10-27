@@ -1,7 +1,7 @@
 <?php
 session_start();
 
-if (!empty($nombre)) {
+if (!isset($_SESSION['usuario_id'])) {
     header('Location: login.php');
     exit;
 }
@@ -18,7 +18,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['registrar_movimiento'
     $observacion = trim($_POST['observacion'] ?? '');
     $id_usuario = $_SESSION['usuario_id'];
 
-if ($id_producto > 0 && in_array($tipo, ['entrada', 'salida']) && $cantidad > 0) {
+    if ($id_producto > 0 && in_array($tipo, ['entrada', 'salida']) && $cantidad > 0) {
         try {
             $stmtProd = $pdo->prepare("SELECT stock_actual, nombre FROM productos WHERE id_producto = :id LIMIT 1");
             $stmtProd->execute([':id' => $id_producto]);
@@ -30,7 +30,6 @@ if ($id_producto > 0 && in_array($tipo, ['entrada', 'salida']) && $cantidad > 0)
                 } else {
                     $pdo->beginTransaction();
 
-                    
                     $stmtMov = $pdo->prepare("INSERT INTO movimientos (tipo, cantidad, observacion, id_producto, id_usuario) 
                                              VALUES (:tipo, :cantidad, :observacion, :id_producto, :id_usuario)");
                     $stmtMov->execute([
@@ -41,7 +40,6 @@ if ($id_producto > 0 && in_array($tipo, ['entrada', 'salida']) && $cantidad > 0)
                         ':id_usuario' => $id_usuario
                     ]);
 
-                    
                     if ($tipo === 'entrada') {
                         $stmtUpdate = $pdo->prepare("UPDATE productos SET stock_actual = stock_actual + :cantidad WHERE id_producto = :id_producto");
                     } else {
@@ -52,7 +50,6 @@ if ($id_producto > 0 && in_array($tipo, ['entrada', 'salida']) && $cantidad > 0)
                         ':id_producto' => $id_producto
                     ]);
 
-                    
                     $pdo->commit();
                     $mensaje = 'Movimiento registrado y stock actualizado correctamente.';
                 }
@@ -60,7 +57,6 @@ if ($id_producto > 0 && in_array($tipo, ['entrada', 'salida']) && $cantidad > 0)
                 $error = 'El producto seleccionado no existe.';
             }
         } catch (PDOException $e) {
-            
             if ($pdo->inTransaction()) {
                 $pdo->rollBack();
             }
@@ -69,6 +65,7 @@ if ($id_producto > 0 && in_array($tipo, ['entrada', 'salida']) && $cantidad > 0)
     } else {
         $error = 'Por favor complete todos los campos obligatorios con valores válidos.';
     }
+}
 
 try {
     $query = "SELECT m.*, p.nombre AS producto_nombre, p.codigo AS producto_codigo, u.nombre AS usuario_nombre 
