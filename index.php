@@ -8,22 +8,26 @@ if (!isset($_SESSION['usuario_id'])) {
 
 require_once 'conexion.php';
 
+$mensaje = '';
+$error = '';
+
 $nombreUsuario = $_SESSION['usuario_nombre'];
 
 try {
-    $stmtProd = $pdo->query("SELECT COUNT(*) FROM productos");
+    $stmtProd = $pdo->query("SELECT COUNT(*) FROM productos WHERE estado = 1");
     $totalProductos = $stmtProd->fetchColumn();
 
-    $stmtCat = $pdo->query("SELECT COUNT(*) FROM categoria WHERE estado = 1");
+    $stmtCat = $pdo->query("SELECT COUNT(*) FROM categorias WHERE estado = 1");
     $totalCategorias = $stmtCat->fetchColumn();
 
-    $stmtBajo = $pdo->query("SELECT COUNT(*) FROM productos WHERE stock_actual <= stock_minimo");
+    $stmtBajo = $pdo->query("SELECT COUNT(*) FROM productos WHERE estado = 1 AND stock_actual <= stock_minimo");
     $stockBajo = $stmtBajo->fetchColumn();
 } catch (PDOException $e) {
     $totalProductos = 0;
     $totalCategorias = 0;
     $stockBajo = 0;
 }
+
 ?>
 <!DOCTYPE html>
 <html lang="es">
