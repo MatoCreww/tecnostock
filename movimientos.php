@@ -18,41 +18,64 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['registrar_movimiento'
     $observacion = trim($_POST['observacion'] ?? '');
     $id_usuario = $_SESSION['usuario_id'];
 
-    if ($id_producto > 0 && in_array($tipo, ['entrada', 'salida']) && $cantidad > 0) {
+if ($id_producto > 0 && in_array($tipo, ['entrada', 'salida']) && $cantidad > 0) {
         try {
-            $stmtMov = $pdo->prepare("INSERT INTO movimientos (tipo, cantidad, observacion, id_producto, id_usuario) 
-                                     VALUES (:tipo, :cantidad, :observacion, :id_producto, :id_usuario)");
-            $stmtMov->execute([
-                ':tipo' => $tipo,
-                ':cantidad' => $cantidad,
-                ':observacion' => $observacion,
-                ':id_producto' => $id_producto,
-                ':id_usuario' => $id_usuario
-            ]);
+            $stmtProd = $pdo->prepare("SELECT stock_actual, nombre FROM productos WHERE id_producto = :id LIMIT 1");
+            $stmtProd->execute([':id' => $id_producto]);
+            $producto = $stmtProd->fetch();
 
-            if ($tipo === 'entrada') {
-                $stmtUpdate = $pdo->prepare("UPDATE productos SET stock_actual = stock_actual + :cantidad WHERE id_producto = :id_producto");
+            if ($producto) {
+                if ($tipo === 'salida' && $cantidad > $producto['stock_actual']) {
+                    $error = "Stock insuficiente para realizar la salida. Stock disponible: {$producto['stock_actual']}";
+                } else {
+                    $pdo->beginTransaction();
+
+                    
+                    $stmtMov = $pdo->prepare("INSERT INTO movimientos (tipo, cantidad, observacion, id_producto, id_usuario) 
+                                             VALUES (:tipo, :cantidad, :observacion, :id_producto, :id_usuario)");
+                    $stmtMov->execute([
+                        ':tipo' => $tipo,
+                        ':cantidad' => $cantidad,
+                        ':observacion' => $observacion,
+                        ':id_producto' => $id_producto,
+                        ':id_usuario' => $id_usuario
+                    ]);
+
+                    
+                    if ($tipo === 'entrada') {
+                        $stmtUpdate = $pdo->prepare("UPDATE productos SET stock_actual = stock_actual + :cantidad WHERE id_producto = :id_producto");
+                    } else {
+                        $stmtUpdate = $pdo->prepare("UPDATE productos SET stock_actual = stock_actual - :cantidad WHERE id_producto = :id_producto");
+                    }
+                    $stmtUpdate->execute([
+                        ':cantidad' => $cantidad,
+                        ':id_producto' => $id_producto
+                    ]);
+
+                    
+                    $pdo->commit();
+                    $mensaje = 'Movimiento registrado y stock actualizado correctamente.';
+                }
             } else {
-                $stmtUpdate = $pdo->prepare("UPDATE productos SET stock_actual = stock_actual - :cantidad WHERE id_producto = :id_producto");
+                $error = 'El producto seleccionado no existe.';
             }
-            $stmtUpdate->execute([
-                ':cantidad' => $cantidad,
-                ':id_producto' => $id_producto
-            ]);
-
-            $mensaje = 'Movimiento registrado y stock actualizado correctamente.';
         } catch (PDOException $e) {
+            
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
             $error = 'Error al procesar el movimiento: ' . $e->getMessage();
         }
     } else {
         $error = 'Por favor complete todos los campos obligatorios con valores válidos.';
     }
-}
 
 try {
-    $query = "SELECT m.*, p.nombre AS producto_nombre, p.codigo AS producto_codigo 
+    $query = "SELECT m.*, p.nombre AS producto_nombre, p.codigo AS producto_codigo, u.nombre AS usuario_nombre 
               FROM movimientos m 
-              INNER JOIN productos p ON m.id_producto = p.id_producto";
+              INNER JOIN productos p ON m.id_producto = p.id_producto 
+              INNER JOIN usuarios u ON m.id_usuario = u.id_usuario 
+              ORDER BY m.id_movimiento DESC";
     $stmt = $pdo->query($query);
     $movimientos = $stmt->fetchAll();
 } catch (PDOException $e) {
@@ -206,7 +229,7 @@ try {
                         <div class="mb-3">
                             <label for="tipo" class="form-label">Tipo de Movimiento</label>
                             <select class="form-select" id="tipo" name="tipo" required>
-                                <option value="ingreso">Entrada (+ Reabastecimiento)</option>
+                                <option value="entrada">Entrada (+ Reabastecimiento)</option>
                                 <option value="salida">Salida (- Retiro / Venta)</option>
                             </select>
                         </div>
