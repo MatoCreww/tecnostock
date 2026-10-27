@@ -15,7 +15,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['crear_categoria'])) {
     $nombre = trim($_POST['nombre'] ?? '');
     $descripcion = trim($_POST['descripcion'] ?? '');
 
-    if (isset($_POST['nombre'])) {
+    if (!empty($nombre)) {
         try {
             $stmt = $pdo->prepare("INSERT INTO categorias (nombre, descripcion) VALUES (:nombre, :descripcion)");
             $stmt->execute([
@@ -41,15 +41,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['cambiar_estado'])) {
 
     if ($id_categoria > 0) {
         try {
-            if ($nuevo_estado === 1) {
-                $stmt = $pdo->prepare("UPDATE categorias SET estado = 1 WHERE id_categoria = :id_categoria");
-                $stmt->execute([':id_categoria' => $id_categoria]);
-                $mensaje = "La categoría ha sido activada correctamente.";
-            } else {
-                $stmt = $pdo->prepare("UPDATE categorias SET estado = 0 WHERE id_categoria = :id_categoria");
-                $stmt->execute([':id_categoria' => $id_categoria]);
-                $mensaje = "La categoría ha sido desactivada correctamente.";
-            }
+            $stmt = $pdo->prepare("UPDATE categorias SET estado = :estado WHERE id_categoria = :id_categoria");
+            $stmt->execute([
+                ':estado' => $nuevo_estado,
+                ':id_categoria' => $id_categoria
+            ]);
+            $estadoTexto = ($nuevo_estado === 1) ? 'activada' : 'desactivada';
+            $mensaje = "La categoría ha sido {$estadoTexto} correctamente.";
         } catch (PDOException $e) {
             $error = 'Error al cambiar el estado de la categoría: ' . $e->getMessage();
         }
@@ -60,14 +58,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['eliminar_categoria'])
     $id_categoria = intval($_POST['id_categoria'] ?? 0);
 
     if ($id_categoria > 0) {
-        $stmt = $pdo->prepare("DELETE FROM categorias WHERE id_categoria = :id_categoria");
-        $stmt->execute([':id_categoria' => $id_categoria]);
-        $mensaje = 'Categoría eliminada con éxito.';
+        try {
+            $stmt = $pdo->prepare("DELETE FROM categorias WHERE id_categoria = :id_categoria");
+            $stmt->execute([':id_categoria' => $id_categoria]);
+            $mensaje = 'Categoría eliminada con éxito.';
+        } catch (PDOException $e) {
+            if ($e->getCode() == 23000) {
+                $error = 'No se puede eliminar esta categoría porque tiene productos asociados. Considera desactivarla en su lugar.';
+            } else {
+                $error = 'Error al eliminar la categoría: ' . $e->getMessage();
+            }
+        }
     }
 }
 
 try {
-    $stmt = $pdo->query("SELECT * FROM categorias");
+    $stmt = $pdo->query("SELECT * FROM categorias ORDER BY id_categoria DESC");
     $categorias = $stmt->fetchAll();
 } catch (PDOException $e) {
     $categorias = [];
@@ -171,7 +177,7 @@ try {
                                             <form action="categorias.php" method="POST" class="d-inline">
                                                 <input type="hidden" name="cambiar_estado" value="1">
                                                 <input type="hidden" name="id_categoria" value="<?= $cat['id_categoria'] ?>">
-                                                <input type="hidden" name="nuevo_estado" value="1">
+                                                <input type="hidden" name="nuevo_estado" value="<?= $cat['estado'] == 1 ? 0 : 1 ?>">
                                                 <?php if ($cat['estado'] == 1): ?>
                                                     <button type="submit" class="btn btn-sm btn-outline-warning">Desactivar</button>
                                                 <?php else: ?>
