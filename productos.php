@@ -10,7 +10,7 @@ require_once 'conexion.php';
 
 $mensaje = '';
 $error = '';
-
+// Bloque para registrar un nuevo producto
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['crear_producto'])) {
     $codigo = trim($_POST['codigo'] ?? '');
     $nombre = trim($_POST['nombre'] ?? '');
@@ -19,9 +19,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['crear_producto'])) {
     $stock_actual = intval($_POST['stock_actual'] ?? 0);
     $stock_minimo = intval($_POST['stock_minimo'] ?? 0);
     $id_categoria = intval($_POST['id_categoria'] ?? 0);
-
+// Se valida que no haya campos vacios ni numeros negativos
     if (!empty($codigo) && !empty($nombre) && $id_categoria > 0 && $precio >= 0 && $stock_actual >= 0 && $stock_minimo >= 0) {
-        try {
+        try { //Se realiza una consulta preparada PDO para prevenir las inyecciones SQL
             $stmt = $pdo->prepare("INSERT INTO productos (codigo, nombre, descripcion, precio, stock_actual, stock_minimo, id_categoria) 
                                    VALUES (:codigo, :nombre, :descripcion, :precio, :stock_actual, :stock_minimo, :id_categoria)");
             $stmt->execute([
@@ -35,6 +35,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['crear_producto'])) {
             ]);
             $mensaje = 'Producto registrado con éxito.';
         } catch (PDOException $e) {
+            // El error 23000 es la violacion de reestriccion de clave unica, es decir, que se dupliquen los ID de los productos
             if ($e->getCode() == 23000) {
                 $error = 'Ya existe un producto con ese código asignado.';
             } else {
@@ -45,7 +46,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['crear_producto'])) {
         $error = 'Por favor complete los campos obligatorios. Los valores numéricos no pueden ser negativos.';
     }
 }
-
+// Bloque para editar un producto ya existente
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['editar_producto'])) {
     $id_producto = intval($_POST['id_producto'] ?? 0);
     $nombre = trim($_POST['nombre'] ?? '');
@@ -55,7 +56,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['editar_producto'])) {
     $id_categoria = intval($_POST['id_categoria'] ?? 0);
 
     if ($id_producto > 0 && !empty($nombre) && $id_categoria > 0 && $precio >= 0 && $stock_minimo >= 0) {
-        try {
+        try { //Se actualiza de manera segura el registro filtrado por la PK 'id_producto'
             $stmt = $pdo->prepare("UPDATE productos 
                                    SET nombre = :nombre, descripcion = :descripcion, precio = :precio, stock_minimo = :stock_minimo, id_categoria = :id_categoria 
                                    WHERE id_producto = :id_producto");
@@ -75,13 +76,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['editar_producto'])) {
         $error = 'Datos inválidos para la actualización del producto.';
     }
 }
-
+ // Bloque para cambiar el estado de un producto (Activado/Desactivado)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['cambiar_estado'])) {
     $id_producto = intval($_POST['id_producto'] ?? 0);
     $nuevo_estado = intval($_POST['nuevo_estado'] ?? 1);
 
     if ($id_producto > 0) {
-        try {
+        try { // Marcado logico (1/0)
             $stmt = $pdo->prepare("UPDATE productos SET estado = :estado WHERE id_producto = :id_producto");
             $stmt->execute([
                 ':estado' => $nuevo_estado,
@@ -94,11 +95,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['cambiar_estado'])) {
         }
     }
 }
-
+// Consulta con filtro de busqueda y la relacion INNER JOIN
 $busqueda = trim($_GET['buscar'] ?? '');
 
 try {
     if (!empty($busqueda)) {
+        // Se hace una busqueda dinamica con parametros independientes para evitar errores de enlace
         $query = "SELECT p.*, c.nombre AS categoria_nombre 
                   FROM productos p 
                   INNER JOIN categorias c ON p.id_categoria = c.id_categoria 
@@ -112,7 +114,7 @@ try {
             ':b2' => $term,
             ':b3' => $term
         ]);
-    } else {
+    } else { //Consulta estandar con JOIN para combinar la tabla de productos y el nombre de la categoria
         $query = "SELECT p.*, c.nombre AS categoria_nombre 
                   FROM productos p 
                   INNER JOIN categorias c ON p.id_categoria = c.id_categoria 
@@ -124,7 +126,7 @@ try {
     $productos = [];
     $error = 'Error al consultar la lista de productos: ' . $e->getMessage();
 }
-
+// Consulta las categorias activas
 try {
     $stmtCat = $pdo->query("SELECT id_categoria, nombre FROM categorias WHERE estado = 1 ORDER BY nombre ASC");
     $categoriasDisponibles = $stmtCat->fetchAll();
@@ -141,7 +143,7 @@ try {
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
 </head>
 <body class="bg-light">
-
+<!-- NavBar -->
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
         <div class="container">
             <a class="navbar-brand fw-bold" href="index.php">TecnoStock</a>
@@ -164,6 +166,7 @@ try {
     </nav>
 
     <div class="container mb-5">
+        <!-- Encabezado y el boton de registro -->
         <div class="row mb-4 align-items-center">
             <div class="col-md-6">
                 <h2>Catálogo de Productos</h2>
@@ -175,21 +178,20 @@ try {
                 </button>
             </div>
         </div>
-
+    <!-- Muestra de alertas procesadas por PHP -->
         <?php if (!empty($mensaje)): ?>
             <div class="alert alert-success alert-dismissible fade show" role="alert">
                 <?= htmlspecialchars($mensaje) ?>
                 <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
             </div>
         <?php endif; ?>
-
         <?php if (!empty($error)): ?>
             <div class="alert alert-danger alert-dismissible fade show" role="alert">
                 <?= htmlspecialchars($error) ?>
                 <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
             </div>
         <?php endif; ?>
-
+        <!-- Formulario de busqueda con metodo GET -->
         <div class="card border-0 shadow-sm mb-4">
             <div class="card-body p-3">
                 <form action="productos.php" method="GET" class="row g-2">
@@ -205,7 +207,7 @@ try {
                 </form>
             </div>
         </div>
-
+    <!-- Tabla principal de productos -->
         <div class="card border-0 shadow-sm">
             <div class="card-body p-0">
                 <div class="table-responsive">
@@ -226,11 +228,13 @@ try {
                             <?php if (count($productos) > 0): ?>
                                 <?php foreach ($productos as $prod): ?>
                                     <tr>
+                                        <!-- Uso de htmpspecialchars() para proteger la salida contra ataques XSS -->
                                         <td><code><?= htmlspecialchars($prod['codigo']) ?></code></td>
                                         <td class="fw-bold"><?= htmlspecialchars($prod['nombre']) ?></td>
                                         <td><span class="badge bg-info text-dark"><?= htmlspecialchars($prod['categoria_nombre']) ?></span></td>
                                         <td>$<?= number_format($prod['precio'], 2) ?></td>
                                         <td>
+                                            <!-- El indicador visual de alerta cuando el stock sea >= stock minimo -->
                                             <?php if ($prod['stock_actual'] <= $prod['stock_minimo']): ?>
                                                 <span class="badge bg-danger"><?= $prod['stock_actual'] ?> (Bajo)</span>
                                             <?php else: ?>
@@ -246,6 +250,7 @@ try {
                                             <?php endif; ?>
                                         </td>
                                         <td class="text-center">
+                                            <!-- Boton de edicion, pasa los datos al modal mediante atributos personalizados -->
                                             <button type="button" class="btn btn-sm btn-outline-primary btn-editar" 
                                                     data-id="<?= $prod['id_producto'] ?>"
                                                     data-nombre="<?= htmlspecialchars($prod['nombre']) ?>"
@@ -256,7 +261,7 @@ try {
                                                     data-bs-toggle="modal" data-bs-target="#modalEditarProducto">
                                                 Editar
                                             </button>
-
+                                            <!-- Formulario para alternar el estado (Activar/Desactivar) -->
                                             <form action="productos.php" method="POST" class="d-inline">
                                                 <input type="hidden" name="cambiar_estado" value="1">
                                                 <input type="hidden" name="id_producto" value="<?= $prod['id_producto'] ?>">
@@ -281,7 +286,7 @@ try {
             </div>
         </div>
     </div>
-
+<!-- Modal: Registrar nuevo producto -->
     <div class="modal fade" id="modalProducto" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-lg">
             <div class="modal-content">
@@ -336,7 +341,7 @@ try {
             </div>
         </div>
     </div>
-
+<!-- Modal: Editar Producto -->
     <div class="modal fade" id="modalEditarProducto" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-lg">
             <div class="modal-content">
@@ -384,7 +389,7 @@ try {
             </div>
         </div>
     </div>
-
+<!-- Logica JavaScript -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         document.querySelectorAll('.btn-editar').forEach(boton => {
@@ -397,14 +402,14 @@ try {
                 document.getElementById('edit_categoria').value = this.dataset.categoria;
             });
         });
-
+//Funcion de validacion inmediata en el cliente, antes de enviar el formulario al servidor
         function validarFormulario(form) {
             const precio = parseFloat(form.precio.value);
             const stockMin = parseInt(form.stock_minimo ? form.stock_minimo.value : 0);
 
             if (precio < 0 || stockMin < 0) {
                 alert('Los valores de precio y stock no pueden ser negativos.');
-                return false;
+                return false; //En el caso de que de este "error", se cancela el envio del formulario
             }
             return true;
         }
