@@ -1,18 +1,22 @@
 <?php
 session_start();
 
+// Control de acceso
+//Si la variable no esta registrada en la sesion, se redirige automaticamente al login
 if (!isset($_SESSION['usuario_id'])) {
     header('Location: login.php');
     exit;
 }
 
-require_once 'conexion.php';
+require_once 'conexion.php'; //Se carga el archivo conexion para interactuar con el MySQL
 
 $mensaje = '';
 $error = '';
 
 $nombreUsuario = $_SESSION['usuario_nombre'];
 
+//Consultas: Total productos y categorias activas
+//Ademas de consultar y verificar si algun producto es menor o igual al stock minimo configurado
 try {
     $stmtProd = $pdo->query("SELECT COUNT(*) FROM productos WHERE estado = 1");
     $totalProductos = $stmtProd->fetchColumn();
@@ -21,7 +25,7 @@ try {
     $totalCategorias = $stmtCat->fetchColumn();
 
     $stmtBajo = $pdo->query("SELECT COUNT(*) FROM productos WHERE estado = 1 AND stock_actual <= stock_minimo");
-    $stockBajo = $stmtBajo->fetchColumn();
+    $stockBajo = $stmtBajo->fetchColumn(); //Se extrae el numero de productos con bajo stock
 } catch (PDOException $e) {
     $totalProductos = 0;
     $totalCategorias = 0;
@@ -32,21 +36,23 @@ try {
 <!DOCTYPE html>
 <html lang="es">
 <head>
+    <!-- Configuracion del juego de caracteres UTF-8 y viewport para adaptar la pantalla en telefonos -->
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TecnoStock - Panel Principal</title>
+    <!-- Se importa los estilos CSS de Bootstrap 5 -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
 </head>
 <body class="bg-light">
-
+    <!-- Navbar -->
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
         <div class="container">
             <a class="navbar-brand fw-bold" href="index.php">TecnoStock</a>
-            
+            <!-- Boton colapsable para telefonos -->
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
                 <span class="navbar-toggler-icon"></span>
             </button>
-
+        <!-- Navbar del sistema -->
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav me-auto">
                     <li class="nav-item">
@@ -62,7 +68,7 @@ try {
                         <a class="nav-link" href="movimientos.php">Movimientos</a>
                     </li>
                 </ul>
-
+            <!-- Area de usuario ya autenticado y el boton de cierre de sesion -->
                 <div class="d-flex align-items-center gap-3">
                     <span class="text-white">Hola, <strong><?= htmlspecialchars($nombreUsuario) ?></strong></span>
                     <a href="logout.php" class="btn btn-outline-danger btn-sm">Cerrar Sesión</a>
@@ -70,7 +76,7 @@ try {
             </div>
         </div>
     </nav>
-
+    <!-- Tarjetas -->
     <div class="container">
         <div class="row">
             <div class="col-12">
@@ -80,7 +86,7 @@ try {
                 </div>
             </div>
         </div>
-
+    <!-- Visual del inventario -->
         <div class="row g-3">
             <div class="col-md-4">
                 <div class="card border-0 shadow-sm bg-primary text-white p-3">
