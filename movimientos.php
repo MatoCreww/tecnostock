@@ -10,26 +10,26 @@ require_once 'conexion.php';
 
 $mensaje = '';
 $error = '';
-
+// Procesa el registro de movimientos
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['registrar_movimiento'])) {
     $id_producto = intval($_POST['id_producto'] ?? 0);
     $tipo = $_POST['tipo'] ?? '';
     $cantidad = intval($_POST['cantidad'] ?? 0);
     $observacion = trim($_POST['observacion'] ?? '');
     $id_usuario = $_SESSION['usuario_id'];
-
+//Validaciones basicas de tipo y valores permitidos
     if ($id_producto > 0 && in_array($tipo, ['entrada', 'salida']) && $cantidad > 0) {
-        try {
+        try { //Consulta para verificar la existencia del producto y stock actual disponible
             $stmtProd = $pdo->prepare("SELECT stock_actual, nombre FROM productos WHERE id_producto = :id LIMIT 1");
             $stmtProd->execute([':id' => $id_producto]);
             $producto = $stmtProd->fetch();
 
-            if ($producto) {
+            if ($producto) { //Control de stocks negativos en salidas
                 if ($tipo === 'salida' && $cantidad > $producto['stock_actual']) {
                     $error = "Stock insuficiente para realizar la salida. Stock disponible: {$producto['stock_actual']}";
-                } else {
+                } else { // Inicio de transaccion PDO para asegurar ACID (La integridad de datos)
                     $pdo->beginTransaction();
-
+                    // Registra la auditoria en la tabla 'movimientos'
                     $stmtMov = $pdo->prepare("INSERT INTO movimientos (tipo, cantidad, observacion, id_producto, id_usuario) 
                                              VALUES (:tipo, :cantidad, :observacion, :id_producto, :id_usuario)");
                     $stmtMov->execute([
@@ -39,7 +39,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['registrar_movimiento'
                         ':id_producto' => $id_producto,
                         ':id_usuario' => $id_usuario
                     ]);
-
+                // Actualiza el inventario en la tabla 'productos'
                     if ($tipo === 'entrada') {
                         $stmtUpdate = $pdo->prepare("UPDATE productos SET stock_actual = stock_actual + :cantidad WHERE id_producto = :id_producto");
                     } else {
@@ -49,14 +49,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['registrar_movimiento'
                         ':cantidad' => $cantidad,
                         ':id_producto' => $id_producto
                     ]);
-
+                // Confirma y consolida de manera permanente los pasos en la BD
                     $pdo->commit();
                     $mensaje = 'Movimiento registrado y stock actualizado correctamente.';
                 }
             } else {
                 $error = 'El producto seleccionado no existe.';
             }
-        } catch (PDOException $e) {
+        } catch (PDOException $e) { // Si un paso falla, se revierten los cambios (Rollback) pendientes para no desbalancear el inventario
             if ($pdo->inTransaction()) {
                 $pdo->rollBack();
             }
@@ -66,8 +66,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['registrar_movimiento'
         $error = 'Por favor complete todos los campos obligatorios con valores válidos.';
     }
 }
-
-try {
+// Historial de movimiento con INNER JOIN
+try { // Se combinan las tablas de movimientos con productos y usuarios para mostrar nombres en la tabla
     $query = "SELECT m.*, p.nombre AS producto_nombre, p.codigo AS producto_codigo, u.nombre AS usuario_nombre 
               FROM movimientos m 
               INNER JOIN productos p ON m.id_producto = p.id_producto 
@@ -79,7 +79,7 @@ try {
     $movimientos = [];
     $error = 'Error al consultar la lista de movimientos.';
 }
-
+// Productos activos para el sector desplegable
 try {
     $stmtProds = $pdo->query("SELECT id_producto, codigo, nombre, stock_actual FROM productos WHERE estado = 1 ORDER BY nombre ASC");
     $productosDisponibles = $stmtProds->fetchAll();
@@ -96,7 +96,7 @@ try {
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
 </head>
 <body class="bg-light">
-
+<!-- Navbar -->
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
         <div class="container">
             <a class="navbar-brand fw-bold" href="index.php">TecnoStock</a>
@@ -138,7 +138,7 @@ try {
                 </button>
             </div>
         </div>
-
+<!-- Alertas de error o exito -->
         <?php if (!empty($mensaje)): ?>
             <div class="alert alert-success alert-dismissible fade show" role="alert">
                 <?= htmlspecialchars($mensaje) ?>
@@ -152,7 +152,7 @@ try {
                 <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
             </div>
         <?php endif; ?>
-
+<!-- Tabla historica de movimientos -->
         <div class="card border-0 shadow-sm">
             <div class="card-body p-0">
                 <div class="table-responsive">
@@ -199,7 +199,7 @@ try {
             </div>
         </div>
     </div>
-
+<!-- Modal: Registra entrada y salida -->
     <div class="modal fade" id="modalMovimiento" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog">
             <div class="modal-content">
@@ -210,7 +210,6 @@ try {
                     </div>
                     <div class="modal-body">
                         <input type="hidden" name="registrar_movimiento" value="1">
-
                         <div class="mb-3">
                             <label for="id_producto" class="form-label">Producto</label>
                             <select class="form-select" id="id_producto" name="id_producto" required>
@@ -222,7 +221,7 @@ try {
                                 <?php endforeach; ?>
                             </select>
                         </div>
-
+                    <!-- Selector tipo Entrada / Salida -->
                         <div class="mb-3">
                             <label for="tipo" class="form-label">Tipo de Movimiento</label>
                             <select class="form-select" id="tipo" name="tipo" required>
@@ -230,7 +229,7 @@ try {
                                 <option value="salida">Salida (- Retiro / Venta)</option>
                             </select>
                         </div>
-
+                    <!-- Cantidad minima = 1 para prevenir 0 o negativos -->
                         <div class="mb-3">
                             <label for="cantidad" class="form-label">Cantidad</label>
                             <input type="number" min="1" class="form-control" id="cantidad" name="cantidad" value="1" required>
