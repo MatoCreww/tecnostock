@@ -10,13 +10,13 @@ require_once 'conexion.php';
 
 $mensaje = '';
 $error = '';
-
+// Bloque para crear nueva categoria
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['crear_categoria'])) {
     $nombre = trim($_POST['nombre'] ?? '');
     $descripcion = trim($_POST['descripcion'] ?? '');
-
+//valida en el servidor que no hayan conjuntos vacios en las respuestas del formulario
     if (!empty($nombre)) {
-        try {
+        try { //Consulta preparada con PDO para evitar inyeccion SQL
             $stmt = $pdo->prepare("INSERT INTO categorias (nombre, descripcion) VALUES (:nombre, :descripcion)");
             $stmt->execute([
                 ':nombre' => $nombre,
@@ -34,7 +34,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['crear_categoria'])) {
         $error = 'El nombre de la categoría es obligatorio.';
     }
 }
-
+// Bloque para cambiar el estado de la categoria
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['cambiar_estado'])) {
     $id_categoria = intval($_POST['id_categoria'] ?? 0);
     $nuevo_estado = intval($_POST['nuevo_estado'] ?? 1);
@@ -53,17 +53,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['cambiar_estado'])) {
         }
     }
 }
-
+//Bloque para eliminar categoria, controlando que no hayan productos vigentes dentro de esta
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['eliminar_categoria'])) {
     $id_categoria = intval($_POST['id_categoria'] ?? 0);
 
     if ($id_categoria > 0) {
-        try {
+        try { //Aqui intenta la eliminacion en la BD
             $stmt = $pdo->prepare("DELETE FROM categorias WHERE id_categoria = :id_categoria");
             $stmt->execute([':id_categoria' => $id_categoria]);
             $mensaje = 'Categoría eliminada con éxito.';
         } catch (PDOException $e) {
-            if ($e->getCode() == 23000) {
+            if ($e->getCode() == 23000) { // El filtro para que no se eliminen categorias con prodcutos asociados vigentes
                 $error = 'No se puede eliminar esta categoría porque tiene productos asociados. Considera desactivarla en su lugar.';
             } else {
                 $error = 'Error al eliminar la categoría: ' . $e->getMessage();
@@ -72,7 +72,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['eliminar_categoria'])
     }
 }
 
-try {
+try { //Consulta de listado de categorias
     $stmt = $pdo->query("SELECT * FROM categorias ORDER BY id_categoria DESC");
     $categorias = $stmt->fetchAll();
 } catch (PDOException $e) {
@@ -89,7 +89,7 @@ try {
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
 </head>
 <body class="bg-light">
-
+<!-- NavBar -->
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
         <div class="container">
             <a class="navbar-brand fw-bold" href="index.php">TecnoStock</a>
@@ -118,7 +118,7 @@ try {
             </div>
         </div>
     </nav>
-
+<!-- Encabezado y boton Modal -->
     <div class="container mb-5">
         <div class="row mb-4">
             <div class="col-md-8">
@@ -131,7 +131,7 @@ try {
                 </button>
             </div>
         </div>
-
+        <!-- Alertas de confirmacion o error -->
         <?php if (!empty($mensaje)): ?>
             <div class="alert alert-success alert-dismissible fade show" role="alert">
                 <?= htmlspecialchars($mensaje) ?>
@@ -145,7 +145,7 @@ try {
                 <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
             </div>
         <?php endif; ?>
-
+<!-- Tabla de categorias -->
         <div class="card border-0 shadow-sm">
             <div class="card-body p-0">
                 <div class="table-responsive">
@@ -204,7 +204,7 @@ try {
             </div>
         </div>
     </div>
-
+<!-- Modal: Registrar nueva categoria -->
     <div class="modal fade" id="modalCategoria" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog">
             <div class="modal-content">
